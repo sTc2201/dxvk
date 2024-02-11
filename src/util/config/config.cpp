@@ -791,9 +791,11 @@ namespace dxvk {
       { "d3d9.maxFrameRate",                "60" },
     }} },
     /* Codename Panzers Phase One/Two          *
-     * Main menu won't render after intros     */
+     * Main menu won't render after intros     *
+     * and CPU bound performance               */
     { R"(\\(PANZERS|PANZERS_Phase_2)\.exe$)", {{
       { "d3d9.enableDialogMode",            "True"   },
+      { "d3d9.cachedDynamicBuffers",        "True"   },
     }} },
     /* DC Universe Online                      *
      * Freezes after alt tabbing               */
@@ -860,6 +862,12 @@ namespace dxvk {
     { R"(\\UK Truck Simulator\\bin\\win_x86\\game\.exe$)", {{
       { "d3d9.floatEmulation",              "Strict" },
     }} },
+    /* Supreme Ruler Ultimate                    *
+     * Leaks a StateBlock leading                *
+     * to Reset calls failing                    */
+    { R"(\\SupremeRulerUltimate\.exe$)", {{
+      { "d3d9.countLosableResources",       "False" },
+    }} },
     
 
     /**********************************************/
@@ -900,6 +908,11 @@ namespace dxvk {
      * systems with integrated graphics. */
     { R"(\\Metro Exodus Enhanced Edition\\MetroExodus\.exe$)", {{
       { "dxvk.hideIntegratedGraphics",      "True" },
+    }} },
+    /* Persona 3 Reload - disables vsync by default and
+     * runs into severe frame latency issues on Deck. */
+    { R"(\\P3R\.exe$)", {{
+      { "dxgi.syncInterval",                "1" },
     }} },
   }};
 
