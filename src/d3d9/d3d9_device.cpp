@@ -455,6 +455,8 @@ namespace dxvk {
       SetDepthStencilSurface(nullptr);
     }
 
+    m_flags.clr(D3D9DeviceFlag::InScene);
+
     /*
       * Before calling the IDirect3DDevice9::Reset method for a device,
       * an application should release any explicit render targets,
@@ -2667,7 +2669,7 @@ namespace dxvk {
 
     if (unlikely(!PrimitiveCount))
       return S_OK;
-      
+
     bool dynamicSysmemVBOs;
     bool dynamicSysmemIBO;
     uint32_t indexCount = GetVertexCount(PrimitiveType, PrimitiveCount);
@@ -3254,6 +3256,11 @@ namespace dxvk {
 
       vbo.offset = OffsetInBytes;
       vbo.stride = Stride;
+    } else {
+      // D3D9 doesn't actually unbind any vertex buffer when passing null.
+      // Operation Flashpoint: Red River relies on this behavior.
+      needsUpdate = false;
+      vbo.offset = 0;
     }
 
     if (needsUpdate)
@@ -3359,7 +3366,8 @@ namespace dxvk {
 
     m_state.indices = buffer;
 
-    BindIndices();
+    if (buffer != nullptr)
+      BindIndices();
 
     return D3D_OK;
   }
@@ -5137,7 +5145,7 @@ namespace dxvk {
       dynamicSysmemVBOs &= vbo == nullptr || vbo->IsSysmemDynamic();
     }
     D3D9CommonBuffer* ibo = GetCommonBuffer(m_state.indices);
-    bool dynamicSysmemIBO = NumIndices != 0 && ibo->IsSysmemDynamic();
+    bool dynamicSysmemIBO = NumIndices != 0 && ibo != nullptr && ibo->IsSysmemDynamic();
 
     *pDynamicVBOs = dynamicSysmemVBOs;
 

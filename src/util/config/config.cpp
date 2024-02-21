@@ -430,6 +430,11 @@ namespace dxvk {
     { R"(\\kenshi_x64\.exe$)", {{
       { "d3d11.cachedDynamicResources",     "v"    },
     }} },
+    /* Granblue Relink: Spams pixel shader UAVs   *
+     * like crazy, much like God of War           */
+    { R"(\\granblue_fantasy_relink\.exe$)", {{
+      { "d3d11.ignoreGraphicsBarriers",     "True" },
+    }} },
 
     /**********************************************/
     /* D3D9 GAMES                                 */
@@ -868,7 +873,12 @@ namespace dxvk {
     { R"(\\SupremeRulerUltimate\.exe$)", {{
       { "d3d9.countLosableResources",       "False" },
     }} },
-    
+    /* Operation Flashpoint: Red River           *
+     * Flickering issues                         */
+    { R"(\\RedRiver\.exe$)", {{
+      { "d3d9.floatEmulation",              "Strict" },
+    }} },
+
 
     /**********************************************/
     /* D3D12 GAMES (vkd3d-proton with dxvk dxgi)  */
