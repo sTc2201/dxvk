@@ -1616,15 +1616,22 @@ namespace dxvk {
 
     m_flags.clr(D3D9DeviceFlag::InScene);
 
-    // D3D9 resets the internally bound vertex buffers and index buffer in EndScene.
+    // D3D9 resets the internally bound vertex buffers and index buffer in EndScene if they were unbound in the meantime.
     // We have to ignore unbinding those buffers because of Operation Flashpoint Red River,
     // so we should also clear the bindings here, to avoid leaks.
-    EmitCs([](DxvkContext* ctx) {
-      ctx->bindIndexBuffer(DxvkBufferSlice(), VK_INDEX_TYPE_UINT32);
-      for (uint32_t i = 0; i < DxvkLimits::MaxNumVertexBindings; i++) {
-        ctx->bindVertexBuffer(i, DxvkBufferSlice(), 0);
+    if (m_state.indices == nullptr) {
+      EmitCs([](DxvkContext* ctx) {
+        ctx->bindIndexBuffer(DxvkBufferSlice(), VK_INDEX_TYPE_UINT32);
+      });
+    }
+    
+    for (uint32_t i = 0; i < DxvkLimits::MaxNumVertexBindings; i++) {
+      if (m_state.vertexBuffers[i].vertexBuffer == nullptr) {
+        EmitCs([cIndex = i](DxvkContext* ctx) {
+          ctx->bindVertexBuffer(cIndex, DxvkBufferSlice(), 0);
+        });
       }
-    });
+    }
 
     return D3D_OK;
   }
@@ -5246,7 +5253,7 @@ namespace dxvk {
         auto* vbo = GetCommonBuffer(m_state.vertexBuffers[i].vertexBuffer);
 
         const uint32_t vertexStride = m_state.vertexDecl->GetSize(i);
-        uint32_t offset = (BaseVertexIndex + FirstVertexIndex) * vertexStride;
+        uint32_t offset = (BaseVertexIndex + FirstVertexIndex) * vertexStride + m_state.vertexBuffers[i].offset;
 
         uint8_t* data = reinterpret_cast<uint8_t*>(upSlice.mapPtr) + vboUPBufferOffsets[i];
         uint8_t* src = reinterpret_cast<uint8_t*>(vbo->GetMappedSlice().mapPtr) + offset;
@@ -7845,9 +7852,10 @@ namespace dxvk {
       if (FAILED(hr))
         return hr;
     }
-    else
+    else {
       m_implicitSwapchain = new D3D9SwapChainEx(this, pPresentationParameters, pFullscreenDisplayMode);
       m_mostRecentlyUsedSwapchain = m_implicitSwapchain.ptr();
+    }
 
     if (pPresentationParameters->EnableAutoDepthStencil) {
       D3D9_COMMON_TEXTURE_DESC desc;
