@@ -156,7 +156,8 @@ namespace dxvk {
     /// Disable counting losable resources and rejecting calls to Reset() if any are still alive
     bool countLosableResources;
 
-    /// D3D9 GTAIV workaround: Decide whether or not to always bias the correctness factor in D3D9DeviceEx::BindViewportAndScissor()
+    /// Decide whether or not to always bias the correctness factor cf in D3D9DeviceEx::BindViewportAndScissor().
+    /// Setting this to False will fix a visaul glitch in GTAIV that caused bright outlines around characters and distant buildings.
     bool alwaysBiasCorrectnessFactor;
   };
 
