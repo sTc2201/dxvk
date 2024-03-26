@@ -543,6 +543,7 @@ namespace dxvk {
       { "dxgi.emulateUMA",                  "True" },
       { "d3d9.supportDFFormats",            "False" },
       { "d3d9.deviceLossOnFocusLoss",       "True" },
+      { "d3d9.alwaysBiasTexelOffset",       "False" },
     }} },
     /* Battlefield 2                              *
      * Bad z-pass and ingame GUI loss on alt tab  */
