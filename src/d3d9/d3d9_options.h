@@ -156,8 +156,8 @@ namespace dxvk {
     /// Disable counting losable resources and rejecting calls to Reset() if any are still alive
     bool countLosableResources;
 
-    /// GTAIV patch: Decide whether or not to always bias the texel offset
-    bool alwaysBiasTexelOffset;
+    /// D3D9 GTAIV workaround: Decide whether or not to always bias the correctness factor in D3D9DeviceEx::BindViewportAndScissor()
+    bool alwaysBiasCorrectnessFactor;
   };
 
 }

@@ -6170,26 +6170,25 @@ namespace dxvk {
     // corner so we can get away with flipping the viewport.
     const D3DVIEWPORT9& vp = m_state.viewport;
 
-    float cf;
-    if (m_d3d9Options.alwaysBiasTexelOffset) {
+    // Correctness Factor for 1/2 texel offset
+    float cf = 0.5f;
+    if (m_d3d9Options.alwaysBiasCorrectnessFactor) {
       // We need to bias this slightly to make
       // imprecision in games happy.
       // Originally we did this only for powers of two
       // resolutions but since NEAREST filtering fixed to
       // truncate, we need to do this all the time now.
-      cf = 0.5f - (1.0f / 128.0f);
-    } else {
-      // Correctness Factor for 1/2 texel offset
-      cf = 0.5f;
-
+      cf -= (1.0f / 128.0f);
+    } 
+    // else {
       // HACK: UE3 bug re. tonemapper + shadow sampling being red:-
       // We need to bias this, except when it's
       // NOT powers of two in order to make
       // imprecision biased towards infinity.
-      if ((vp.Width  & (vp.Width  - 1)) == 0
-      && (vp.Height & (vp.Height - 1)) == 0)
-        cf -= 1.0f / 128.0f;
-    }
+    //   if ((vp.Width  & (vp.Width  - 1)) == 0
+    //   && (vp.Height & (vp.Height - 1)) == 0)
+    //     cf -= 1.0f / 128.0f;
+    // }
 
     // How much to bias MinZ by to avoid a depth
     // degenerate viewport.
