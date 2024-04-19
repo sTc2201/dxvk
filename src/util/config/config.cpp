@@ -122,8 +122,6 @@ namespace dxvk {
     }} },
     /* NieR Replicant                             */
     { R"(\\NieR Replicant ver\.1\.22474487139\.exe)", {{
-      { "dxgi.syncInterval",                "1"    },
-      { "dxgi.maxFrameRate",                "60"   },
       { "d3d11.cachedDynamicResources",     "vi"   },
     }} },
     /* SteamVR performance test                   */
@@ -331,11 +329,6 @@ namespace dxvk {
     { R"(\\SonicFrontiers\.exe$)", {{
       { "dxgi.maxFrameLatency",             "1" },
     }} },
-    /* TRAHA Global                               *
-     * Shadow issues when it sees AMD/Nvidia      */
-    { R"(\\RapaNui-Win64-Shipping\.exe$)", {{
-      { "dxgi.customVendorId",              "8086" },
-    }} },
     /* SpellForce 3 Reforced & expansions         *
      * Greatly improves CPU bound performance     */
     { R"(\\SF3ClientFinal\.exe$)", {{
@@ -410,11 +403,6 @@ namespace dxvk {
     /* Riders Republic - Statically linked AMDAGS */
     { R"(\\RidersRepublic(_BE)?\.exe$)", {{
       { "dxgi.hideAmdGpu",                "True"   },
-    }} },
-    /* HoloCure - Save the Fans!
-       Same as Cyberpunk 2077                     */
-    { R"(\\HoloCure\.exe$)", {{
-      { "dxgi.useMonitorFallback",          "True" },
     }} },
     /* Kenshi                                     *
      * Helps CPU bound performance                */
@@ -901,13 +889,6 @@ namespace dxvk {
      * enabling ray tracing if it sees an AMD GPU. */
     { R"(\\RiftApart\.exe$)", {{
       { "dxgi.hideNvidiaGpu",               "False" },
-    }} },
-    /* CP2077 enumerates display outputs each frame.
-     * Avoid using QueryDisplayConfig to avoid
-     * performance degradation until the
-     * optimization of that function is in Proton. */
-    { R"(\\Cyberpunk2077\.exe$)", {{
-      { "dxgi.useMonitorFallback",          "True" },
     }} },
     /* Metro Exodus Enhanced Edition picks GPU adapters
      * by available VRAM, which causes issues on some
