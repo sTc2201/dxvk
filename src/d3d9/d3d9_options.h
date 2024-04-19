@@ -157,7 +157,7 @@ namespace dxvk {
     bool countLosableResources;
 
     /// Decide whether or not to always bias the correctness factor cf in D3D9DeviceEx::BindViewportAndScissor().
-    /// Setting this to False will fix a visaul glitch in GTAIV that caused bright outlines around characters and distant buildings.
+    /// Setting this to False will fix a visual glitch in GTAIV that caused bright outlines around characters and distant buildings.
     bool alwaysBiasCorrectnessFactor;
   };
 
