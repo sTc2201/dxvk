@@ -257,13 +257,12 @@ namespace dxvk {
     info.outputMask = m_outputMask;
     info.uniformSize = m_immConstData.size();
     info.uniformData = m_immConstData.data();
+    info.pushConstStages = VK_SHADER_STAGE_FRAGMENT_BIT;
+    info.pushConstSize = sizeof(DxbcPushConstants);
     info.outputTopology = m_outputTopology;
 
     if (m_programInfo.type() == DxbcProgramType::HullShader)
       info.patchVertexCount = m_hs.vertexCountIn;
-
-    if (m_programInfo.type() == DxbcProgramType::PixelShader && m_ps.pushConstantId)
-      info.pushConstSize = sizeof(DxbcPushConstants);
 
     if (m_moduleInfo.xfb) {
       info.xfbRasterizedStream = m_moduleInfo.xfb->rasterizedStream;
@@ -1624,8 +1623,13 @@ namespace dxvk {
       
       case DxbcOpcode::Mad:
       case DxbcOpcode::DFma:
-        dst.id = m_module.opFFma(typeId,
-          src.at(0).id, src.at(1).id, src.at(2).id);
+        if (likely(!m_moduleInfo.options.longMad)) {
+          dst.id = m_module.opFFma(typeId,
+            src.at(0).id, src.at(1).id, src.at(2).id);
+        } else {
+          dst.id = m_module.opFMul(typeId, src.at(0).id, src.at(1).id);
+          dst.id = m_module.opFAdd(typeId, dst.id, src.at(2).id);
+        }
         break;
       
       case DxbcOpcode::Max:
