@@ -159,6 +159,10 @@ namespace dxvk {
     /// Decide whether or not to always bias the correctness factor cf in D3D9DeviceEx::BindViewportAndScissor().
     /// Setting this to False will fix a visual glitch in GTAIV that caused bright outlines around characters and distant buildings.
     bool alwaysBiasCorrectnessFactor;
+    /// Ensure that for the same D3D commands the output VK commands
+    /// don't change between runs. Useful for comparative benchmarking,
+    /// can negatively affect performance.
+    bool reproducibleCommandStream;
   };
 
 }
