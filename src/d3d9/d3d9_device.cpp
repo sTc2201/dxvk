@@ -56,6 +56,7 @@ namespace dxvk {
     , m_csThread        ( dxvkDevice, dxvkDevice->createContext(DxvkContextType::Primary) )
     , m_csChunk         ( AllocCsChunk() )
     , m_submissionFence (new sync::Fence())
+    , m_flushTracker    (m_d3d9Options.reproducibleCommandStream)
     , m_d3d9Interop     ( this )
     , m_d3d9On12        ( this )
     , m_d3d8Bridge      ( this ) {
@@ -594,7 +595,7 @@ namespace dxvk {
                             || (Usage & D3DUSAGE_DYNAMIC)
                             || IsVendorFormat(EnumerateFormat(Format));
 
-    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, &desc)))
+    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, D3DRTYPE_TEXTURE, &desc)))
       return D3DERR_INVALIDCALL;
 
     try {
@@ -664,7 +665,7 @@ namespace dxvk {
                             || (Usage & D3DUSAGE_DYNAMIC)
                             || IsVendorFormat(EnumerateFormat(Format));
 
-    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, &desc)))
+    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, D3DRTYPE_VOLUMETEXTURE, &desc)))
       return D3DERR_INVALIDCALL;
 
     try {
@@ -721,7 +722,7 @@ namespace dxvk {
                             || (Usage & D3DUSAGE_DYNAMIC)
                             || IsVendorFormat(EnumerateFormat(Format));
 
-    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, &desc)))
+    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, D3DRTYPE_CUBETEXTURE, &desc)))
       return D3DERR_INVALIDCALL;
 
     try {
@@ -3798,7 +3799,7 @@ namespace dxvk {
     desc.IsAttachmentOnly   = TRUE;
     desc.IsLockable         = Lockable;
 
-    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, &desc)))
+    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, D3DRTYPE_TEXTURE, &desc)))
       return D3DERR_INVALIDCALL;
 
     try {
@@ -3846,7 +3847,7 @@ namespace dxvk {
     // Docs: Off-screen plain surfaces are always lockable, regardless of their pool types.
     desc.IsLockable         = TRUE;
 
-    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, &desc)))
+    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, D3DRTYPE_TEXTURE, &desc)))
       return D3DERR_INVALIDCALL;
 
     if (pSharedHandle != nullptr && Pool != D3DPOOL_DEFAULT)
@@ -3901,7 +3902,7 @@ namespace dxvk {
     // Docs don't say anything, so just assume it's lockable.
     desc.IsLockable         = TRUE;
 
-    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, &desc)))
+    if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, D3DRTYPE_TEXTURE, &desc)))
       return D3DERR_INVALIDCALL;
 
     try {
@@ -5158,7 +5159,7 @@ namespace dxvk {
     return D3D_OK;
   }
 
-  
+
 
   void D3D9DeviceEx::UploadDynamicSysmemBuffers(
           UINT&                   FirstVertexIndex,
@@ -5190,25 +5191,58 @@ namespace dxvk {
     // First we calculate the size of that UP buffer slice
     // and store all sizes and offsets into it.
 
-    uint32_t upBufferSize = 0;
-    std::array<uint32_t, caps::MaxStreams> vboUPBufferOffsets = {};
-    std::array<uint32_t, caps::MaxStreams> vboUPBufferSizes = {};
-    for (uint32_t i = 0; i < caps::MaxStreams && dynamicSysmemVBOs; i++) {
-      vboUPBufferOffsets[i] = upBufferSize;
+    struct VBOCopy {
+      uint32_t srcOffset;
+      uint32_t dstOffset;
+      uint32_t copyBufferLength;
+      uint32_t copyElementCount;
+      uint32_t copyElementSize;
+      uint32_t copyElementStride;
+    };
+    uint32_t totalUpBufferSize = 0;
+    std::array<VBOCopy, caps::MaxStreams> vboCopies = {};
 
+    for (uint32_t i = 0; i < caps::MaxStreams && dynamicSysmemVBOs; i++) {
       auto* vbo = GetCommonBuffer(m_state.vertexBuffers[i].vertexBuffer);
       if (likely(vbo == nullptr)) {
-        vboUPBufferSizes[i] = 0;
         continue;
       }
-      const uint32_t vertexStride = m_state.vertexDecl->GetSize(i);
-      uint32_t offset = (FirstVertexIndex + BaseVertexIndex) * vertexStride;
-      const uint32_t vertexBufferSize = vbo->Desc()->Size;
-      if (offset < vertexBufferSize) {
-        const uint32_t vertexDataSize = std::min(NumVertices * vertexStride, vertexBufferSize - offset);
-        vboUPBufferSizes[i] = vertexDataSize;
-        upBufferSize += vertexDataSize;
+      const uint32_t vertexSize = m_state.vertexDecl->GetSize(i);
+      const uint32_t vertexStride = m_state.vertexBuffers[i].stride;
+      const uint32_t srcStride = vertexStride;
+      const uint32_t dstStride = std::min(vertexStride, vertexSize);
+
+      uint32_t elementCount = NumVertices;
+      if (m_state.streamFreq[i] & D3DSTREAMSOURCE_INSTANCEDATA) {
+        elementCount = GetInstanceCount();
       }
+      const uint32_t vboOffset = m_state.vertexBuffers[i].offset;
+      const uint32_t vertexOffset = (FirstVertexIndex + BaseVertexIndex) * srcStride;
+      const uint32_t vertexBufferSize = vbo->Desc()->Size;
+      const uint32_t srcOffset = vboOffset + vertexOffset;
+
+      if (unlikely(srcOffset > vertexBufferSize)) {
+        // All vertices are out of bounds
+        vboCopies[i].copyBufferLength = 0;
+      } else if (unlikely(srcOffset + elementCount * srcStride > vertexBufferSize)) {
+        // Some vertices are (partially) out of bounds
+        uint32_t boundVertexBufferRange = vertexBufferSize - vboOffset;
+        elementCount = boundVertexBufferRange / srcStride;
+        // Copy all complete vertices
+        vboCopies[i].copyBufferLength = elementCount * dstStride;
+        // Copy the remaining partial vertex
+        vboCopies[i].copyBufferLength += std::min(dstStride, boundVertexBufferRange % srcStride);
+      } else {
+        // No vertices are out of bounds
+        vboCopies[i].copyBufferLength = elementCount * dstStride;
+      }
+
+      vboCopies[i].copyElementCount = elementCount;
+      vboCopies[i].copyElementStride = srcStride;
+      vboCopies[i].copyElementSize = dstStride;
+      vboCopies[i].srcOffset = srcOffset;
+      vboCopies[i].dstOffset = totalUpBufferSize;
+      totalUpBufferSize += vboCopies[i].copyBufferLength;
     }
 
     uint32_t iboUPBufferSize = 0;
@@ -5221,13 +5255,13 @@ namespace dxvk {
         uint32_t indexBufferSize = ibo->Desc()->Size;
         if (offset < indexBufferSize) {
           iboUPBufferSize = std::min(NumIndices * indexStride, indexBufferSize - offset);
-          iboUPBufferOffset = upBufferSize;
-          upBufferSize += iboUPBufferSize;
+          iboUPBufferOffset = totalUpBufferSize;
+          totalUpBufferSize += iboUPBufferSize;
         }
       }
     }
 
-    if (unlikely(upBufferSize == 0)) {
+    if (unlikely(totalUpBufferSize == 0)) {
       *pDynamicVBOs = false;
       if (pDynamicIBO)
         *pDynamicIBO = false;
@@ -5235,47 +5269,49 @@ namespace dxvk {
       return;
     }
 
-    auto upSlice = AllocUPBuffer(upBufferSize);
+    auto upSlice = AllocUPBuffer(totalUpBufferSize);
 
     // Now copy the actual data and bind it.
-    if (dynamicSysmemVBOs) {
-      for (uint32_t i = 0; i < caps::MaxStreams; i++) {
-        if (unlikely(vboUPBufferSizes[i] == 0)) {
-          EmitCs([
-            cStream = i
-          ](DxvkContext* ctx) {
-            ctx->bindVertexBuffer(cStream, DxvkBufferSlice(), 0);
-          });
-          m_flags.set(D3D9DeviceFlag::DirtyVertexBuffers);
-          continue;
+    for (uint32_t i = 0; i < caps::MaxStreams && dynamicSysmemVBOs; i++) {
+      const VBOCopy& copy = vboCopies[i];
+
+      if (likely(copy.copyBufferLength != 0)) {
+        const auto* vbo = GetCommonBuffer(m_state.vertexBuffers[i].vertexBuffer);
+        uint8_t* data = reinterpret_cast<uint8_t*>(upSlice.mapPtr) + copy.dstOffset;
+        const uint8_t* src = reinterpret_cast<uint8_t*>(vbo->GetMappedSlice().mapPtr) + copy.srcOffset;
+
+        if (likely(copy.copyElementStride == copy.copyElementSize)) {
+          std::memcpy(data, src, copy.copyBufferLength);
+        } else {
+          for (uint32_t j = 0; j * copy.copyElementCount; j++) {
+            std::memcpy(data + j * copy.copyElementSize, src + j * copy.copyElementStride, copy.copyElementSize);
+          }
+          if (unlikely(copy.copyBufferLength > copy.copyElementCount * copy.copyElementSize)) {
+            // Partial vertex at the end
+            std::memcpy(
+              data + copy.copyElementCount * copy.copyElementSize,
+              src + copy.copyElementCount * copy.copyElementStride,
+              copy.copyBufferLength - copy.copyElementCount * copy.copyElementSize);
+          }
         }
-
-        auto* vbo = GetCommonBuffer(m_state.vertexBuffers[i].vertexBuffer);
-
-        const uint32_t vertexStride = m_state.vertexDecl->GetSize(i);
-        uint32_t offset = (BaseVertexIndex + FirstVertexIndex) * vertexStride + m_state.vertexBuffers[i].offset;
-
-        uint8_t* data = reinterpret_cast<uint8_t*>(upSlice.mapPtr) + vboUPBufferOffsets[i];
-        uint8_t* src = reinterpret_cast<uint8_t*>(vbo->GetMappedSlice().mapPtr) + offset;
-        std::memcpy(data, src, vboUPBufferSizes[i]);
-
-        auto vboSlice = upSlice.slice.subSlice(vboUPBufferOffsets[i], vboUPBufferSizes[i]);
-        EmitCs([
-          cStream      = i,
-          cBufferSlice = std::move(vboSlice),
-          cStride      = vertexStride
-        ](DxvkContext* ctx) mutable {
-          ctx->bindVertexBuffer(cStream, std::move(cBufferSlice), cStride);
-        });
-        m_flags.set(D3D9DeviceFlag::DirtyVertexBuffers);
       }
 
-      // Change the draw call parameters to reflect the changed vertex buffers
-      if (NumIndices != 0) {
-        BaseVertexIndex = -FirstVertexIndex;
-      } else {
-        FirstVertexIndex = 0;
-      }
+      auto vboSlice = upSlice.slice.subSlice(copy.dstOffset, copy.copyBufferLength);
+      EmitCs([
+        cStream      = i,
+        cBufferSlice = std::move(vboSlice),
+        cStride      = copy.copyElementSize
+      ](DxvkContext* ctx) mutable {
+        ctx->bindVertexBuffer(cStream, std::move(cBufferSlice), cStride);
+      });
+      m_flags.set(D3D9DeviceFlag::DirtyVertexBuffers);
+    }
+
+    // Change the draw call parameters to reflect the changed vertex buffers
+    if (NumIndices != 0) {
+      BaseVertexIndex = -FirstVertexIndex;
+    } else {
+      FirstVertexIndex = 0;
     }
 
     if (dynamicSysmemIBO) {
@@ -5292,7 +5328,7 @@ namespace dxvk {
         uint8_t* data = reinterpret_cast<uint8_t*>(upSlice.mapPtr) + iboUPBufferOffset;
         uint8_t* src = reinterpret_cast<uint8_t*>(ibo->GetMappedSlice().mapPtr) + offset;
         std::memcpy(data, src, iboUPBufferSize);
-        
+
         auto iboSlice = upSlice.slice.subSlice(iboUPBufferOffset, iboUPBufferSize);
         EmitCs([
           cBufferSlice = std::move(iboSlice),
@@ -7894,7 +7930,7 @@ namespace dxvk {
       // Docs: Also note that - unlike textures - swap chain back buffers, render targets [..] can be locked
       desc.IsLockable         = TRUE;
 
-      if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, &desc)))
+      if (FAILED(D3D9CommonTexture::NormalizeTextureProperties(this, D3DRTYPE_TEXTURE, &desc)))
         return D3DERR_NOTAVAILABLE;
 
       m_autoDepthStencil = new D3D9Surface(this, &desc, nullptr, nullptr);

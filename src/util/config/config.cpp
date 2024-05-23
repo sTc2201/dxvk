@@ -13,7 +13,10 @@
 
 namespace dxvk {
 
-  const static std::vector<std::pair<const char*, Config>> g_appDefaults = {{
+  using ProfileList = std::vector<std::pair<const char*, Config>>;
+
+
+  const static ProfileList g_profiles = {{
     /* Assassin's Creed Syndicate: amdags issues  */
     { R"(\\ACS\.exe$)", {{
       { "dxgi.customVendorId",              "10de" },
@@ -134,6 +137,10 @@ namespace dxvk {
     }} },
     /* Modern Warfare Remastered                  */
     { R"(\\h1(_[ms]p64_ship|-mod)\.exe$)", {{
+      { "dxgi.customVendorId",              "10de" },
+    }} },
+    /* H2M-Mod - Modern Warfare Remastered        */
+    { R"(\\h2m-mod\.exe$)", {{
       { "dxgi.customVendorId",              "10de" },
     }} },
     /* Modern Warfare 2 Campaign Remastered       *
@@ -416,6 +423,16 @@ namespace dxvk {
       { "d3d11.ignoreGraphicsBarriers",     "True"  },
       { "d3d11.exposeDriverCommandLists",   "False" },
       { "dxgi.hideNvidiaGpu",               "False" },
+    }} },
+    /* Red Faction Guerrilla Re-Mars-tered        *
+     * Broken skybox                              */
+    { R"(\\rfg\.exe$)", {{
+      { "d3d11.longMad",                  "True"    },
+    }} },
+    /* Guild Wars 2 - Fixes invisibility effect   *
+     * flicker when invariantPosition is enabled  */
+    { R"(\\Gw2-64\.exe$)", {{
+      { "d3d11.longMad",                  "True"    },
     }} },
 
     /**********************************************/
@@ -865,6 +882,27 @@ namespace dxvk {
     { R"(\\ShippingPC-SkyGame\.exe$)", {{
       { "d3d9.maxFrameRate",                "60" },
     }} },
+    /* 9th Dawn II                               *
+     * OpenGL game that also spins up d3d9       *
+     * Black screens without config              */
+    { R"(\\ninthdawnii\.exe$)", {{
+      { "d3d9.deferSurfaceCreation",        "True" },
+    }} },
+    /* Delta Force: Xtreme 1 & 2                 *
+     * Black screen on Alt-Tab and performance   */
+    { R"(\\(DFX|dfx2)\.exe$)", {{
+      { "d3d9.deviceLossOnFocusLoss",       "True" },
+      { "d3d9.cachedDynamicBuffers",        "True" },
+    }} },
+    /* The Sims 3 - Black screen on alt-tab      */
+    { R"(\\TS3(W)?\.exe$)", {{ 
+      { "d3d9.deviceLossOnFocusLoss",       "True" },
+    }} },
+    /* Prototype                                 *
+     * Incorrect shadows on AMD & Intel          */
+    { R"(\\prototypef\.exe$)", {{ 
+      { "d3d9.supportDFFormats",            "False" },
+    }} },
 
 
     /**********************************************/
@@ -901,6 +939,28 @@ namespace dxvk {
       { "dxgi.syncInterval",                "1" },
     }} },
   }};
+
+
+  const static ProfileList g_deckProfiles = {{
+    /* Fallout 4: Defaults to 45 FPS on OLED, but also breaks above 60 FPS */
+    { R"(\\Fallout4\.exe$)", {{
+      { "dxgi.syncInterval",                "1" },
+      { "dxgi.maxFrameRate",                "60" },
+    }} },
+  }};
+
+
+  const Config* findProfile(const ProfileList& profiles, const std::string& appName) {
+    auto appConfig = std::find_if(profiles.begin(), profiles.end(),
+      [&appName] (const std::pair<const char*, Config>& pair) {
+        std::regex expr(pair.first, std::regex::extended | std::regex::icase);
+        return std::regex_search(appName, expr);
+      });
+
+    return appConfig != profiles.end()
+      ? &appConfig->second
+      : nullptr;
+  }
 
 
   static bool isWhitespace(char ch) {
@@ -1152,20 +1212,22 @@ namespace dxvk {
 
 
   Config Config::getAppConfig(const std::string& appName) {
-    auto appConfig = std::find_if(g_appDefaults.begin(), g_appDefaults.end(),
-      [&appName] (const std::pair<const char*, Config>& pair) {
-        std::regex expr(pair.first, std::regex::extended | std::regex::icase);
-        return std::regex_search(appName, expr);
-      });
+    const Config* config = nullptr;
 
-    if (appConfig != g_appDefaults.end()) {
+    if (env::getEnvVar("SteamDeck") == "1")
+      config = findProfile(g_deckProfiles, appName);
+
+    if (!config)
+      config = findProfile(g_profiles, appName);
+
+    if (config) {
       // Inform the user that we loaded a default config
       Logger::info(str::format("Found built-in config:"));
 
-      for (auto& pair : appConfig->second.m_options)
+      for (auto& pair : config->m_options)
         Logger::info(str::format("  ", pair.first, " = ", pair.second));
 
-      return appConfig->second;
+      return *config;
     }
 
     return Config();
