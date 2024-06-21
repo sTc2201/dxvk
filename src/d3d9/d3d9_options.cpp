@@ -42,7 +42,7 @@ namespace dxvk {
       : (adapter != nullptr ? adapter->deviceProperties().vendorID : 0);
 
     this->maxFrameLatency               = config.getOption<int32_t>     ("d3d9.maxFrameLatency",               0);
-    this->maxFrameRate                  = config.getOption<int32_t>     ("d3d9.maxFrameRate",                  0);
+    this->maxFrameRate                  = config.getOption<int32_t>     ("dxvk.maxFrameRate",                  0);
     this->presentInterval               = config.getOption<int32_t>     ("d3d9.presentInterval",               -1);
     this->shaderModel                   = config.getOption<int32_t>     ("d3d9.shaderModel",                   3);
     this->dpiAware                      = config.getOption<bool>        ("d3d9.dpiAware",                      true);
@@ -79,6 +79,9 @@ namespace dxvk {
     this->countLosableResources         = config.getOption<bool>        ("d3d9.countLosableResources",         true);
     this->alwaysBiasCorrectnessFactor   = config.getOption<bool>        ("d3d9.alwaysBiasCorrectnessFactor",   true);
     this->reproducibleCommandStream     = config.getOption<bool>        ("d3d9.reproducibleCommandStream",     false);
+
+    // D3D8 options
+    this->drefScaling                   = config.getOption<int32_t>     ("d3d8.scaleDref",                     0);
 
     // Clamp LOD bias so that people don't abuse this in unintended ways
     this->samplerLodBias = dxvk::fclamp(this->samplerLodBias, -2.0f, 1.0f);
