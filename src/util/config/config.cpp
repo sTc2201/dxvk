@@ -455,6 +455,11 @@ namespace dxvk {
     { R"(\\x86_64\\Warcraft III\.exe$)", {{
       { "dxvk.hideIntegratedGraphics",      "True"  },
     }} },
+    /* Earth Defense Force 5 */
+    { R"(\\EDF5\.exe$)", {{
+      { "dxgi.tearFree",                    "False" },
+      { "dxgi.syncInterval",                "1"     },
+    }} },
 
     /**********************************************/
     /* D3D9 GAMES                                 */
@@ -469,17 +474,22 @@ namespace dxvk {
     { R"(\\anarchyonline\.exe$)", {{
       { "d3d9.memoryTrackTest",             "True" },
     }} },
-    /* Borderlands 2 and The Pre Sequel!          * 
-     * Missing lava in Vault of the Warrior       *
-     * without Strict floats                      */
-    { R"(\\Borderlands(2|PreSequel)\.exe$)", {{
+    /* Borderlands                                */
+    { R"(\\Borderlands\.exe$)", {{
+      { "d3d9.lenientClear",                "True" },
+    }} },
+    /* Borderlands 2                               *
+     * Missing lava in Vault of the Warrior        *
+     * without Strict floats                       */
+    { R"(\\Borderlands2\.exe$)", {{
       { "d3d9.lenientClear",                "True" },
       { "d3d9.supportDFFormats",            "False" },
       { "d3d9.floatEmulation",              "Strict" },
     }} },
-    /* Borderlands                                */
-    { R"(\\Borderlands\.exe$)", {{
+    /* Borderlands: The Pre-Sequel                  */
+    { R"(\\BorderlandsPreSequel\.exe$)", {{
       { "d3d9.lenientClear",                "True" },
+      { "d3d9.supportDFFormats",            "False" },
     }} },
     /* Gothic 3                                   */
     { R"(\\Gothic(3|3Final| III Forsaken Gods)\.exe$)", {{
@@ -495,7 +505,8 @@ namespace dxvk {
        The Sims Life Stories,
        The Sims Pet Stories,
        and The Sims Castaway Stories             */
-    { R"(\\(Sims2.*|TS2BodyShop|SimsLS|SimsPS|SimsCS)\.exe$)", {{
+    { R"(\\(Sims2.*|TS2BodyShop|SimsLS|SimsPS|SimsCS)"
+      R"(|The Sims 2 Content Manager|TS2HomeCrafterPlus)\.exe$)", {{
       { "d3d9.customVendorId",              "10de" },
       { "d3d9.customDeviceId",              "0091" },
       { "d3d9.customDeviceDesc",            "GeForce 7800 GTX" },
@@ -646,11 +657,6 @@ namespace dxvk {
     /* Far Cry 1 has worse water rendering when it detects AMD GPUs */
     { R"(\\FarCry\.exe$)", {{
       { "d3d9.customVendorId",              "10de" },
-    }} },
-    /* Earth Defense Force 5 */
-    { R"(\\EDF5\.exe$)", {{
-      { "dxgi.tearFree",                    "False" },
-      { "dxgi.syncInterval",                "1"     },
     }} },
     /* Sine Mora EX */
     { R"(\\SineMoraEX\.exe$)", {{
@@ -1001,9 +1007,9 @@ namespace dxvk {
       { "d3d9.customVendorId",              "10de" },
       { "d3d9.cachedDynamicBuffers",        "True" },
     }} },
-    /* Alpha Protocol - Rids unwanted reflections  */
-    { R"(\\APGame\.exe$)", {{
-      { "d3d9.forceSamplerTypeSpecConstants", "True" },
+    /* Dark Sector - Crashes in places             */
+    { R"(\\DS\.exe$)", {{
+      { "d3d9.textureMemory",                "0" },
     }} },
 
     /**********************************************/
@@ -1491,6 +1497,8 @@ namespace dxvk {
     }
 
     if (!confLine.empty()) {
+      ctx.active = true;
+
       // Inform the user that we parsing config from environment, might
       // help when debugging configuration issues
       Logger::info(str::format("Found config env: ", confLine));
